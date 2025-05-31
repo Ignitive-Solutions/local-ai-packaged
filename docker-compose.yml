@@ -1,16 +1,11 @@
-include:
-  - ./supabase/docker/docker-compose.yml
-
 volumes:
   n8n_storage:
-  ollama_storage:
   qdrant_storage:
   open-webui:
   flowise:
   caddy-data:
   caddy-config:
   valkey-data:
-  langfuse_postgres_data:
   langfuse_clickhouse_data:
   langfuse_clickhouse_logs:
   langfuse_minio_data:
@@ -19,40 +14,16 @@ x-n8n: &service-n8n
   image: n8nio/n8n:latest
   environment:
     - DB_TYPE=postgresdb
-    - DB_POSTGRESDB_HOST=db
-    - DB_POSTGRESDB_USER=postgres
-    - DB_POSTGRESDB_PASSWORD=${POSTGRES_PASSWORD}
-    - DB_POSTGRESDB_DATABASE=postgres
+    - DB_POSTGRESDB_HOST=${SUPABASE_CLOUD_HOST}
+    - DB_POSTGRESDB_USER=${SUPABASE_CLOUD_USER}
+    - DB_POSTGRESDB_PASSWORD=${SUPABASE_CLOUD_PASSWORD}
+    - DB_POSTGRESDB_PORT=${SUPABASE_CLOUD_PORT}
+    - DB_POSTGRESDB_DATABASE=${SUPABASE_CLOUD_DB}
     - N8N_DIAGNOSTICS_ENABLED=false
     - N8N_PERSONALIZATION_ENABLED=false
     - N8N_ENCRYPTION_KEY
     - N8N_USER_MANAGEMENT_JWT_SECRET
-    - WEBHOOK_URL=${N8N_HOSTNAME:+https://}${N8N_HOSTNAME:-http://localhost:5678}
-
-x-ollama: &service-ollama
-  image: ollama/ollama:latest
-  container_name: ollama
-  restart: unless-stopped
-  ports:
-    - 11434:11434
-  environment:
-    - OLLAMA_CONTEXT_LENGTH=8192
-  volumes:
-    - ollama_storage:/root/.ollama
-
-x-init-ollama: &init-ollama
-  image: ollama/ollama:latest
-  container_name: ollama-pull-llama
-  volumes:
-    - ollama_storage:/root/.ollama
-  entrypoint: /bin/sh
-  command:
-    - "-c"
-    - "sleep 3; OLLAMA_HOST=ollama:11434 ollama pull qwen2.5:7b-instruct-q4_K_M; OLLAMA_HOST=ollama:11434 ollama pull nomic-embed-text"
-    # For a larger context length verison of the model, run these commands:
-    # echo "FROM qwen2.5:7b-instruct-q4_K_M\n\nPARAMETER num_ctx 8096" > Modelfile
-    # ollama create qwen2.5:7b-8k -f ./Modelfile
-    # Change the name of the LLM and num_ctx as you see fit.
+    - WEBHOOK_URL=${N8N_HOSTNAME}
 
 services:
   flowise:
@@ -142,7 +113,6 @@ services:
       - N8N_HOSTNAME=${N8N_HOSTNAME:-":8001"}
       - WEBUI_HOSTNAME=${WEBUI_HOSTNAME:-":8002"}
       - FLOWISE_HOSTNAME=${FLOWISE_HOSTNAME:-":8003"}
-      - OLLAMA_HOSTNAME=${OLLAMA_HOSTNAME:-":8004"}
       - SUPABASE_HOSTNAME=${SUPABASE_HOSTNAME:-":8005"}
       - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-":8006"}
       - LANGFUSE_HOSTNAME=${LANGFUSE_HOSTNAME:-":8007"}
@@ -162,8 +132,6 @@ services:
     image: langfuse/langfuse-worker:3
     restart: always
     depends_on: &langfuse-depends-on
-      postgres:
-        condition: service_healthy    
       minio:
         condition: service_healthy
       redis:
@@ -173,7 +141,7 @@ services:
     ports:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      DATABASE_URL: postgresql://postgres:${CLOUD_SUPABASE_SERVICE_ROLE_KEY}@${CLOUD_SUPABASE_URL}/postgres # Adjust as per Supabase connection string format
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
@@ -278,22 +246,6 @@ services:
       retries: 5
       start_period: 1s
 
-  postgres:
-    image: postgres:${POSTGRES_VERSION:-latest}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 3s
-      timeout: 3s
-      retries: 10
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: postgres
-    ports:
-      - 127.0.0.1:5433:5432
-    volumes:
-      - langfuse_postgres_data:/var/lib/postgresql/data              
 
   redis:
     container_name: redis
@@ -331,8 +283,8 @@ services:
       - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:-localhost}/
       - UWSGI_WORKERS=${SEARXNG_UWSGI_WORKERS:-4}
       - UWSGI_THREADS=${SEARXNG_UWSGI_THREADS:-4}
-    cap_drop:
-      - ALL
+    # cap_drop:
+    #   - ALL
     cap_add:
       - CHOWN
       - SETGID
@@ -341,46 +293,4 @@ services:
       driver: "json-file"
       options:
         max-size: "1m"
-        max-file: "1"      
-
-  ollama-cpu:
-    profiles: ["cpu"]
-    <<: *service-ollama
-
-  ollama-gpu:
-    profiles: ["gpu-nvidia"]
-    <<: *service-ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-
-  ollama-gpu-amd:
-    profiles: ["gpu-amd"]
-    <<: *service-ollama
-    image: ollama/ollama:rocm
-    devices:
-      - "/dev/kfd"
-      - "/dev/dri"
-
-  ollama-pull-llama-cpu:
-    profiles: ["cpu"]
-    <<: *init-ollama
-    depends_on:
-      - ollama-cpu
-
-  ollama-pull-llama-gpu:
-    profiles: ["gpu-nvidia"]
-    <<: *init-ollama
-    depends_on:
-      - ollama-gpu
-
-  ollama-pull-llama-gpu-amd:
-    profiles: [gpu-amd]
-    <<: *init-ollama
-    image: ollama/ollama:rocm
-    depends_on:
-     - ollama-gpu-amd
+        max-file: "1"
