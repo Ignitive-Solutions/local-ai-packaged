@@ -23,7 +23,8 @@ x-n8n: &service-n8n
     - N8N_PERSONALIZATION_ENABLED=false
     - N8N_ENCRYPTION_KEY
     - N8N_USER_MANAGEMENT_JWT_SECRET
-    - WEBHOOK_URL=${N8N_HOSTNAME}
+    # Requires https:// in the google drive oauth callback 
+    - WEBHOOK_URL=${N8N_WEBHOOK_URL} 
 
 services:
   flowise:
@@ -141,7 +142,7 @@ services:
     ports:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
-      DATABASE_URL: postgresql://postgres:${CLOUD_SUPABASE_SERVICE_ROLE_KEY}@${CLOUD_SUPABASE_URL}/postgres # Adjust as per Supabase connection string format
+      DATABASE_URL: postgresql://postgres.ijxlvklccvdqftbfraip:Ignitive-d3v!@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres # Adjust as per Supabase connection string format
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}
