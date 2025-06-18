@@ -118,6 +118,7 @@ services:
       - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-":8006"}
       - LANGFUSE_HOSTNAME=${LANGFUSE_HOSTNAME:-":8007"}
       - NEO4J_HOSTNAME=${NEO4J_HOSTNAME:-":8008"}
+      - ARCHON_HOSTNAME=${ARCHON_HOSTNAME:-":8009"}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL:-internal}
     cap_drop:
       - ALL
@@ -142,7 +143,7 @@ services:
     ports:
       - 127.0.0.1:3030:3030
     environment: &langfuse-worker-env
-      DATABASE_URL: postgresql://postgres.ijxlvklccvdqftbfraip:Ignitive-d3v!@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres # Adjust as per Supabase connection string format
+      DATABASE_URL: ${DATABASE_URL}
       SALT: ${LANGFUSE_SALT}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-true}

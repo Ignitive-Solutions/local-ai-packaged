@@ -40,6 +40,11 @@
     reverse_proxy localhost:7474
 }
 
+# Archon Agenteer
+{$ARCHON_HOSTNAME} {
+reverse_proxy localhost:8501 # Streamlit exposed port
+}
+
 # SearXNG
 {$SEARXNG_HOSTNAME} {
     encode zstd gzip
